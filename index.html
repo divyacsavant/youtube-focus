@@ -33,6 +33,7 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--border-color);
+            box-sizing: border-box;
         }
 
         h1 {
@@ -163,12 +164,11 @@
         <!-- Pinned Video Player Section -->
         <div class="player-card">
             <div class="video-wrapper">
-                <!-- The IFrame API will mount the player here -->
                 <div id="youtube-player"></div>
             </div>
             <div class="control-panel">
                 <form class="url-form" id="urlForm" onsubmit="handleUrlSubmit(event)">
-                    <input type="text" id="urlInput" placeholder="Paste YouTube Video URL or ID here..." required>
+                    <input type="text" id="urlInput" placeholder="Paste YouTube URL or Shorts link here..." required>
                     <button type="submit">Always Pin This</button>
                 </form>
             </div>
@@ -177,17 +177,16 @@
         <!-- Quick Access Slots -->
         <div class="section-title">Quick Access Pins</div>
         <div class="presets-grid" id="presetsGrid">
-            <!-- Dynamically populated or standard quick buttons -->
-            <button class="preset-btn" onclick="loadVideo('dQw4w9WgXcQ')">
-                <strong>Sample Video 1</strong>
-                <span style="font-size: 0.8rem; color: #aaa;">Click to test feed</span>
+            <button class="preset-btn" onclick="loadVideo('k8ctm3I0RY0')">
+                <strong>Boredom & Creativity Short</strong>
+                <span style="font-size: 0.8rem; color: #aaa;">Click to test</span>
             </button>
         </div>
     </div>
 
     <script>
-        // Default target video (Change this ID to your favorite video/reel ID)
-        let currentVideoId = localStorage.getItem('pinnedVideoId') || 'dQw4w9WgXcQ';
+        // Load default or previously saved video ID
+        let currentVideoId = localStorage.getItem('pinnedVideoId') || 'k8ctm3I0RY0';
         let player;
 
         // Load YouTube IFrame API script asynchronously
@@ -196,7 +195,6 @@
         const firstScriptTag = document.getElementsByTagName('script')[0];
         firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-        // This function is called automatically by the YouTube API once loaded
         window.onYouTubeIframeAPIReady = function() {
             player = new YT.Player('youtube-player', {
                 height: '100%',
@@ -205,38 +203,47 @@
                 playerVars: {
                     'autoplay': 1,
                     'modestbranding': 1,
-                    'rel': 0 // Shows related videos from the same channel/queue when finished instead of stopping dead
-                },
-                events: {
-                    'onStateChange': onPlayerStateChange
+                    'rel': 0
                 }
             });
         };
 
-        // Detects when the current video ends and handles transition
-        function onPlayerStateChange(event) {
-            // YT.PlayerState.ENDED = 0
-            if (event.data === 0) {
-                // Video finished. By setting 'rel': 0 and letting the player naturally proceed, 
-                // it will show related recommendations or loop if configured.
-                console.log("Video ended. Moving to next recommendation.");
+        // Bulletproof universal URL/Shorts ID extractor
+        function extractVideoId(input) {
+            if (!input) return null;
+            
+            // Extract pure URL if text or title block was pasted alongside it
+            const urlMatch = input.match(/(https?:\/\/[^\s]+)/);
+            const cleanInput = urlMatch ? urlMatch[1] : input.trim();
+
+            // If user passed just the raw 11-character token
+            if (cleanInput.length === 11) return cleanInput;
+
+            // Universal regex matching standard, shortened, and shorts URLs
+            const regExp = /^.*(?:(?:v|be|shorts)\/|v%3D|v=|=)([a-zA-Z0-9_-]{11})/;
+            const match = cleanInput.match(regExp);
+            
+            if (match && match[1]) {
+                return match[1];
             }
+
+            // Fallback iteration check across path split tokens
+            const parts = cleanInput.split(/[\/\?=\&]/);
+            for (let part of parts) {
+                if (part.length === 11 && /^[a-zA-Z0-9_-]+$/.test(part)) {
+                    return part;
+                }
+            }
+
+            return null;
         }
 
-        // Extract YouTube ID from various URL formats
-        function extractVideoId(url) {
-            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-            const match = url.match(regExp);
-            return (match && match[2].length === 11) ? match[2] : url;
-        }
-
-        // Handle user pasting a new URL
         function handleUrlSubmit(event) {
             event.preventDefault();
             const inputVal = document.getElementById('urlInput').value;
             const videoId = extractVideoId(inputVal);
             
-            if (videoId && videoId.length === 11) {
+            if (videoId) {
                 currentVideoId = videoId;
                 localStorage.setItem('pinnedVideoId', videoId);
                 
@@ -247,11 +254,10 @@
                 }
                 document.getElementById('urlInput').value = '';
             } else {
-                alert('Please enter a valid YouTube video URL or ID.');
+                alert('Could not find a valid YouTube video or Shorts ID. Please check the link.');
             }
         }
 
-        // Quick load preset function
         function loadVideo(videoId) {
             currentVideoId = videoId;
             localStorage.setItem('pinnedVideoId', videoId);
